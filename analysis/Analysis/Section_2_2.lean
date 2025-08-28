@@ -83,7 +83,9 @@ lemma Nat.add_succ (n m:Nat) : n + (m++) = (n + m)++ := by
 
 /-- n++ = n + 1 (Why?). Compare with Mathlib's `Nat.succ_eq_add_one` -/
 theorem Nat.succ_eq_add_one (n:Nat) : n++ = n + 1 := by
-  sorry
+  rw [show 1 = 0++ from rfl]
+  rw [add_succ]
+  rw [add_zero]
 
 /-- Proposition 2.2.4 (Addition is commutative). Compare with Mathlib's `Nat.add_comm` -/
 theorem Nat.add_comm (n m:Nat) : n + m = m + n := by
@@ -97,7 +99,11 @@ theorem Nat.add_comm (n m:Nat) : n + m = m + n := by
 /-- Proposition 2.2.5 (Addition is associative) / Exercise 2.2.1
     Compare with Mathlib's `Nat.add_assoc`. -/
 theorem Nat.add_assoc (a b c:Nat) : (a + b) + c = a + (b + c) := by
-  sorry
+  revert a; apply induction
+  . rfl
+  intro n h
+  repeat rw[succ_add]
+  rw [h]
 
 /-- Proposition 2.2.6 (Cancellation law).
     Compare with Mathlib's `Nat.add_left_cancel`. -/
@@ -174,7 +180,16 @@ extracts a witness `x` and a proof `hx : P x` of the property from a hypothesis 
 
 /-- Lemma 2.2.10 (unique predecessor) / Exercise 2.2.2 -/
 lemma Nat.uniq_succ_eq (a:Nat) (ha: a.IsPos) : ∃! b, b++ = a := by
-  sorry
+  apply existsUnique_of_exists_of_unique
+  . revert a; apply induction
+    . intro h
+      contradiction
+    . intro n idh hpos
+      apply Exists.intro n
+      rfl
+  . intro x y hx hy
+    apply succ_cancel
+    rw [hx, hy]
 
 /-- Definition 2.2.11 (Ordering of the natural numbers).
     This defines the `≤` notation on the natural numbers. -/
@@ -220,13 +235,25 @@ example : (8:Nat) > 5 := by
 
 /-- Compare with Mathlib's `Nat.lt_succ_self`. -/
 theorem Nat.succ_gt_self (n:Nat) : n++ > n := by
-  sorry
+  rw [gt_iff_lt]
+  rw [lt_iff]
+  constructor
+  . apply Exists.intro 1
+    rw [succ_eq_add_one]
+  . by_contra h
+    nth_rw 1 [← add_zero n] at h
+    rw [succ_eq_add_one] at h
+    apply add_left_cancel at h
+    contradiction
 
 /-- Proposition 2.2.12 (Basic properties of order for natural numbers) / Exercise 2.2.3
 
 (a) (Order is reflexive). Compare with Mathlib's `Nat.le_refl`.-/
 theorem Nat.ge_refl (a:Nat) : a ≥ a := by
-  sorry
+  rw [ge_iff_le]
+  rw [le_iff]
+  apply Exists.intro 0
+  rw [add_zero]
 
 @[refl]
 theorem Nat.le_refl (a:Nat) : a ≤ a := a.ge_refl
@@ -237,17 +264,45 @@ example (a b:Nat): a+b ≥ a+b := by rfl
 /-- (b) (Order is transitive).  The `obtain` tactic will be useful here.
     Compare with Mathlib's `Nat.le_trans`. -/
 theorem Nat.ge_trans {a b c:Nat} (hab: a ≥ b) (hbc: b ≥ c) : a ≥ c := by
-  sorry
+  -- rw [ge_iff_le, le_iff] at hab
+  obtain ⟨d, hd⟩ := hab
+  -- rw [ge_iff_le, le_iff] at hbc
+  obtain ⟨e, he⟩ := hbc
+  rw [he] at hd
+  rw [hd]
+  use (e + d)
+  apply add_assoc
 
 theorem Nat.le_trans {a b c:Nat} (hab: a ≤ b) (hbc: b ≤ c) : a ≤ c := Nat.ge_trans hbc hab
 
 /-- (c) (Order is anti-symmetric). Compare with Mathlib's `Nat.le_antisymm`. -/
 theorem Nat.ge_antisymm {a b:Nat} (hab: a ≥ b) (hba: b ≥ a) : a = b := by
-  sorry
+  obtain ⟨c, hc⟩ := hab
+  obtain ⟨d, hd⟩ := hba
+  have hcd: 0 = c + d := by
+    rw [hc, add_assoc] at hd
+    nth_rw 1 [← add_zero b] at hd
+    apply add_left_cancel at hd
+    exact hd
+  have edz := Nat.add_eq_zero _ _ hcd.symm
+  rw [edz.left] at hc
+  rw [add_zero] at hc
+  exact hc
 
 /-- (d) (Addition preserves order).  Compare with Mathlib's `Nat.add_le_add_right`. -/
 theorem Nat.add_ge_add_right (a b c:Nat) : a ≥ b ↔ a + c ≥ b + c := by
-  sorry
+  constructor
+  . intro hab
+    obtain ⟨d, hd⟩ := hab
+    rw [hd]
+    use d
+    exact add_right_comm b d c
+  . intro hab
+    obtain ⟨d, hd⟩ := hab
+    use d
+    apply add_left_cancel c
+    rw [add_comm, add_comm c, add_right_comm]
+    exact hd
 
 /-- (d) (Addition preserves order).  Compare with Mathlib's `Nat.add_le_add_left`.  -/
 theorem Nat.add_ge_add_left (a b c:Nat) : a ≥ b ↔ c + a ≥ c + b := by
@@ -262,11 +317,64 @@ theorem Nat.add_le_add_left (a b c:Nat) : a ≤ b ↔ c + a ≤ c + b := add_ge_
 
 /-- (e) a < b iff a++ ≤ b.  Compare with Mathlib's `Nat.succ_le_iff`. -/
 theorem Nat.lt_iff_succ_le (a b:Nat) : a < b ↔ a++ ≤ b := by
-  sorry
+  constructor
+  . intro hab
+    obtain ⟨ha, h2⟩ := hab
+    obtain ⟨c, ha⟩ := ha
+    have hc: c ≠ 0 := by
+      by_contra h
+      rw [h, add_zero] at ha
+      symm at ha
+      contradiction
+    apply uniq_succ_eq at hc
+    obtain ⟨d, hd⟩ := hc
+    have h3: d++ = c := hd.left
+    rw [succ_eq_add_one] at h3
+    rw [succ_eq_add_one]
+    rw [ha]
+    use d
+    rw [← h3]
+    rw [add_right_comm, add_assoc]
+  . intro hab
+    obtain ⟨c, hab⟩ := hab
+    rw [succ_eq_add_one] at hab
+    constructor
+    . use (c + 1)
+      rw [← add_assoc, add_right_comm]
+      exact hab
+    . by_contra h
+      rw [h] at hab
+      nth_rw 1 [← add_zero b] at hab
+      rw [add_assoc] at hab
+      apply add_left_cancel at hab
+      contradiction
 
 /-- (f) a < b if and only if b = a + d for positive d. -/
 theorem Nat.lt_iff_add_pos (a b:Nat) : a < b ↔ ∃ d:Nat, d.IsPos ∧ b = a + d := by
-  sorry
+  constructor
+  . intro hab
+    obtain ⟨hab, h2⟩ := hab
+    obtain ⟨c, hab⟩ := hab
+    use c
+    constructor
+    . rw [isPos_iff]
+      by_contra h
+      rw [h, add_zero] at hab
+      symm at hab
+      contradiction
+    . exact hab
+  . intro h
+    obtain ⟨d, h⟩ := h
+    constructor
+    . use d
+      exact h.right
+    . by_contra h1
+      have h2: a + d = b + 0 := by
+        rw [add_zero, h.right]
+      rw [h1] at h2
+      apply add_left_cancel b d 0 at h2
+      have h3 := h.left
+      contradiction
 
 /-- If a < b then a ̸= b,-/
 theorem Nat.ne_of_lt (a b:Nat) : a < b → a ≠ b := by
@@ -298,7 +406,8 @@ theorem Nat.lt_of_le_of_lt {a b c : Nat} (hab: a ≤ b) (hbc: b < c) : a < c := 
 /-- This lemma was a `why?` statement from Proposition 2.2.13,
 but is more broadly useful, so is extracted here. -/
 theorem Nat.zero_le (a:Nat) : 0 ≤ a := by
-  sorry
+  use a
+  rw [zero_add]
 
 /-- Proposition 2.2.13 (Trichotomy of order for natural numbers) / Exercise 2.2.4
     Compare with Mathlib's `trichotomous`.  Parts of this theorem have been placed
@@ -314,9 +423,23 @@ theorem Nat.trichotomous (a b:Nat) : a < b ∨ a = b ∨ a > b := by
   . rw [lt_iff_succ_le] at case1
     rw [le_iff_lt_or_eq] at case1
     tauto
-  . have why : a++ > b := by sorry
+  . have why : a++ > b := by
+      rw [case2]
+      exact succ_gt_self b
     tauto
-  have why : a++ > b := by sorry
+  have why : a++ > b := by
+    have h := succ_gt_self a
+    apply le_of_lt at h
+    obtain ⟨h1, h2⟩ := case3
+    constructor
+    . exact  ge_trans h h1
+    . by_contra h3
+      rw [h3] at h1
+      have h4: a = a++ := ge_antisymm h1 h
+      rw [succ_eq_add_one] at h4
+      nth_rw 1 [← add_zero a] at h4
+      apply add_left_cancel at h4
+      contradiction
   tauto
 
 /--
@@ -331,20 +454,40 @@ theorem Nat.trichotomous (a b:Nat) : a < b ∨ a = b ∨ a > b := by
 def Nat.decLe : (a b : Nat) → Decidable (a ≤ b)
   | 0, b => by
     apply isTrue
-    sorry
+    apply Exists.intro b
+    rw [zero_add]
   | a++, b => by
     cases decLe a b with
     | isTrue h =>
       cases decEq a b with
       | isTrue h =>
         apply isFalse
-        sorry
-      | isFalse h =>
+        by_contra h1
+        rw [h] at h1
+        nth_rw 2 [← add_zero b] at h1
+        rw [succ_eq_add_one] at h1
+        rw [← add_le_add_left] at h1
+        have h2: (0:Nat) ≤ (1:Nat) := by
+          apply Exists.intro 1
+          rw [zero_add]
+        have h3: (0:Nat) = (1:Nat) := by
+          apply ge_antisymm h1
+          rw [ge_iff_le]
+          exact h2
+        contradiction
+      | isFalse h2 =>
         apply isTrue
-        sorry
+        have h1: a < b := ⟨h, h2⟩
+        rw [lt_iff_succ_le] at h1
+        exact h1
     | isFalse h =>
       apply isFalse
-      sorry
+      by_contra h1
+      obtain ⟨d, hd⟩ := h1
+      rw [succ_eq_add_one] at hd
+      rw [add_assoc] at hd
+      apply h
+      use (1 + d)
 
 instance Nat.decidableRel : DecidableRel (· ≤ · : Nat → Nat → Prop) := Nat.decLe
 
@@ -398,27 +541,125 @@ example (a b c d e:Nat) (hab: a ≤ b) (hbc: b < c) (hde: d < e) :
   gcongr
   order
 
+theorem Nat.lt_zero (a: Nat) : a < 0 → False := by
+  intro h
+  obtain ⟨h1, h2⟩ := h
+  have h3: a ≥ 0 := by
+    use a
+    rw [zero_add]
+  have h4: a = 0 := le_antisymm h1 h3
+  contradiction
+
+theorem Nat.le_zero (a: Nat) : a <= 0 → a = 0 := by
+  intro h
+  cases a with
+  | zero => rfl
+  | succ a =>
+    rw [← lt_iff_succ_le] at h
+    apply lt_zero at h
+    contradiction
+
+theorem Nat.succ_lt_succ_iff (a b: Nat) : a ≤ b ↔ a++ ≤ b++ := by
+  constructor
+  . intro h
+    repeat rw [succ_eq_add_one]
+    rw [← ge_iff_le]
+    rw  [← add_ge_add_right]
+    exact h
+  . intro h
+    repeat rw [succ_eq_add_one] at h
+    rw [← ge_iff_le] at h
+    rw  [← add_ge_add_right] at h
+    exact h
+
 /-- Proposition 2.2.14 (Strong principle of induction) / Exercise 2.2.5
     Compare with Mathlib's `Nat.strong_induction_on`.
 -/
 theorem Nat.strong_induction {m₀:Nat} {P: Nat → Prop}
   (hind: ∀ m, m ≥ m₀ → (∀ m', m₀ ≤ m' ∧ m' < m → P m') → P m) :
     ∀ m, m ≥ m₀ → P m := by
-  sorry
+  have h: ∀ n, ∀ m', m₀ ≤ m' ∧ m' < n → P m' := by
+    apply induction
+    . intro m
+      intro ⟨h1, h2, h3⟩
+      apply le_zero at h2
+      contradiction
+    . intro n
+      intro h1
+      intro m'
+      intro h2
+      apply hind
+      . exact h2.left
+      . intro x h
+        apply h1
+        constructor
+        . exact h.left
+        . rw [lt_iff_le_and_ne]
+          have h1: m' ≤ n := by
+              rw [lt_iff_succ_le] at h2
+              rw [← succ_lt_succ_iff] at h2
+              exact h2.right
+          have h2 := h.right
+          constructor
+          . apply le_of_lt at h2
+            exact le_trans h2 h1
+          . by_contra h3
+            rw [lt_iff_succ_le] at h2
+            have h4 := le_trans h2 h1
+            rw [h3] at h4
+            rw [succ_eq_add_one] at h4
+            nth_rw 2 [← add_zero n] at h4
+            rw [← add_le_add_left] at h4
+            contradiction
+  intro m h1
+  apply h (m++)
+  constructor
+  . exact h1
+  . exact succ_gt_self m
 
 /-- Exercise 2.2.6 (backwards induction)
     Compare with Mathlib's `Nat.decreasingInduction`. -/
 theorem Nat.backwards_induction {n:Nat} {P: Nat → Prop}
   (hind: ∀ m, P (m++) → P m) (hn: P n) :
     ∀ m, m ≤ n → P m := by
-  sorry
+  revert n; apply induction
+  . intro h
+    intro n
+    intro h1
+    apply le_zero at h1
+    rw [h1]
+    exact h
+  . intro n
+    intro h1
+    intro h2
+    have h3 := hind _ h2
+    apply h1 at h3
+    intro x h4
+    rw [le_iff_lt_or_eq] at h4
+    rcases h4 with lt|eq
+    . rw [lt_iff_succ_le] at lt
+      rw [← succ_lt_succ_iff] at lt
+      apply h3 at lt
+      exact lt
+    rw [← eq] at h2
+    exact h2
 
 /-- Exercise 2.2.7 (induction from a starting point)
     Compare with Mathlib's `Nat.le_induction`. -/
 theorem Nat.induction_from {n:Nat} {P: Nat → Prop} (hind: ∀ m, P m → P (m++)) :
     P n → ∀ m, m ≥ n → P m := by
-  sorry
-
-
+  intro base
+  intro m hm
+  obtain ⟨m', hm⟩ := hm
+  rw [hm]
+  clear hm
+  revert m'; apply induction
+  . rw [add_zero]
+    exact base
+  . intro m'
+    intro h
+    rw [add_succ]
+    apply hind at h
+    exact h
 
 end Chapter2
