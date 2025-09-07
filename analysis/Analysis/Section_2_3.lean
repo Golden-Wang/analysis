@@ -277,7 +277,6 @@ theorem Nat.exists_div_mod (n:Nat) {q: Nat} (hq: q.IsPos) :
     constructor
     . use (r++)
       rw [zero_add]
-
     constructor
     . rw [lt_iff_le_and_ne]
       constructor
